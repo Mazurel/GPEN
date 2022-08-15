@@ -36,7 +36,7 @@ from distributed import (
 from training import lpips
 
 
-def data_sampler(dataset, shuffle, distributed):
+def data_sampler(dataset, shuffle, distributed=False):
     if distributed:
         return data.distributed.DistributedSampler(dataset, shuffle=shuffle)
 

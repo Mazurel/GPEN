@@ -17,9 +17,10 @@ class IDLoss(nn.Module):
 
     def extract_feats(self, x):
         _, _, h, w = x.shape
-        assert h==w
-        ss = h//256
-        x = x[:, :, 35*ss:-33*ss, 32*ss:-36*ss]  # Crop interesting region
+        assert h == w, "Shape must be a square"
+        if h > 256:
+            ss = h//256
+            x = x[:, :, 35*ss:-33*ss, 32*ss:-36*ss]  # Crop interesting region
         x = self.face_pool(x)
         x_feats = self.facenet(x)
         return x_feats
