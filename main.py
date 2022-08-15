@@ -23,9 +23,13 @@ from training import lpips
 CHECKPOINTS_FOLDER = "checkpoints/"
 SAMPLE_FOLDER = "samples/"
 BASE_DIR = "./"
+PHOTOS_DIR = "../photos/pp"
 PRETRAINED_MODEL = None # "weights/GPEN-Colorization-1024.pth"
 
-SIZE = 64
+SAVE_EVERY = 10_000
+ITERATIONS = 4_000_000
+
+SIZE = 128  # Image size
 LATENT = 32
 N_MLP = 2
 CHANNEL_MULTIPLIER = 2
@@ -35,6 +39,7 @@ LR = 0.002
 BATCH_SIZE = 2
 G_REG_EVERY = 4
 D_REG_EVERY = 16
+
 
 class RelightedDataset:
     '''
@@ -93,7 +98,7 @@ def input_output_grid(data):
 
 
 if __name__ == "__main__":
-    relighted_dataset = RelightedDataset("../photos/pp/")
+    relighted_dataset = RelightedDataset(PHOTOS_DIR)
 
     os.makedirs(CHECKPOINTS_FOLDER, exist_ok=True)
     os.makedirs(SAMPLE_FOLDER, exist_ok=True)
@@ -131,6 +136,7 @@ if __name__ == "__main__":
         betas=(0 ** d_reg_ratio, 0.99 ** d_reg_ratio),
     )
 
+    # TODO: Fix loading pretrained model
     if PRETRAINED_MODEL is not None:
         print('load model:', PRETRAINED_MODEL)
 
@@ -143,10 +149,9 @@ if __name__ == "__main__":
         g_optim.load_state_dict(ckpt['g_optim'])
         d_optim.load_state_dict(ckpt['d_optim'])
 
-
     smooth_l1_loss = torch.nn.SmoothL1Loss().to(device)
     id_loss = IDLoss(BASE_DIR, device, ckpt_dict=None)
-    lpips_func = lpips.LPIPS(net='alex',version='0.1').to(device)
+    lpips_func = lpips.LPIPS(net='alex', version='0.1').to(device)
 
     dataset = relighted_dataset
     loader = data.DataLoader(
@@ -157,8 +162,8 @@ if __name__ == "__main__":
     )
 
     class Args:
-        save_freq = 10000
-        iter = 4_000_000
+        save_freq = SAVE_EVERY
+        iter = ITERATIONS
         sample = "sample"
         path_batch_shrink = 2
         g_reg_every = G_REG_EVERY
