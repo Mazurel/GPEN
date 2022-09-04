@@ -165,6 +165,9 @@ if __name__ == "__main__":
         save_freq = SAVE_EVERY
         iter = ITERATIONS
         sample = "sample"
+        val_dir = "val"
+        ckpt = "ckpts"
+        size = SIZE
         path_batch_shrink = 2
         g_reg_every = G_REG_EVERY
         path_regularize = 2
