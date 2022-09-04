@@ -1,3 +1,3 @@
 [submodule "DPR"]
 	path = DPR
-	url = git@github.com:Mazurel/DPR.git
+	url = https://github.com/Mazurel/DPR.git
