@@ -158,7 +158,7 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
     else:
         g_module = generator
         d_module = discriminator
- 
+
     accum = 0.5 ** (32 / (10 * 1000))
 
     for idx in pbar:
@@ -263,12 +263,16 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
                     f'd: {d_loss_val:.4f}; g: {g_loss_val:.4f}; r1: {r1_val:.4f}; '
                 )
             )
-            
+
             if i % args.save_freq == 0:
                 with torch.no_grad():
                     g_ema.eval()
                     sample, _ = g_ema(degraded_img)
-                    sample = torch.cat((degraded_img, sample, real_img), 0) 
+                    sample = torch.cat((degraded_img, sample, real_img), 0)
+
+                    if not os.path.exists(args.sample):
+                        os.makedirs(args.sample)
+
                     utils.save_image(
                         sample,
                         f'{args.sample}/{str(i).zfill(6)}.png',
@@ -366,16 +370,16 @@ if __name__ == '__main__':
 
     if args.pretrain is not None:
         print('load model:', args.pretrain)
-        
+
         ckpt = torch.load(args.pretrain)
 
         generator.load_state_dict(ckpt['g'])
         discriminator.load_state_dict(ckpt['d'])
         g_ema.load_state_dict(ckpt['g_ema'])
-            
+
         g_optim.load_state_dict(ckpt['g_optim'])
         d_optim.load_state_dict(ckpt['d_optim'])
-    
+
     smooth_l1_loss = torch.nn.SmoothL1Loss().to(device)
     id_loss = IDLoss(args.base_dir, device, ckpt_dict=None)
     lpips_func = lpips.LPIPS(net='alex',version='0.1').to(device)

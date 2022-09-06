@@ -62,8 +62,14 @@ class RelightedDataset:
 
     def __getitem__(self, idx):
         # NOTE: Each image has variation of all possible lights
-        imagePath = self.images[idx // self._dpr.lightsAmount()]
-        inputImage, outputImage = self._dpr.relighten(imagePath, idx % self._dpr.lightsAmount())
+        while True:
+            imagePath = self.images[idx // self._dpr.lightsAmount()]
+            try:
+                inputImage, outputImage = self._dpr.relighten(imagePath, idx % self._dpr.lightsAmount())
+                break
+            except AttributeError:  # Happens when loading image has failed
+                print(f"Error loading {imagePath}, trying another image ...")
+                continue
 
         # Reorder axis for pytorch and rescale values
         inputImage = np.moveaxis(inputImage, 2, 0) / 255.0
