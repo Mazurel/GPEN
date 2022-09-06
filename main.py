@@ -68,8 +68,7 @@ class RelightedDataset:
                 inputImage, outputImage = self._dpr.relighten(imagePath, idx % self._dpr.lightsAmount())
                 break
             except AttributeError:  # Happens when loading image has failed
-                print(f"Error loading {imagePath}, trying another image ...")
-                continue
+                raise RuntimeError(f"Error loading {imagePath} !")
 
         # Reorder axis for pytorch and rescale values
         inputImage = np.moveaxis(inputImage, 2, 0) / 255.0
