@@ -264,11 +264,13 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
         path_length_val = loss_reduced['path_length'].mean().item()
 
         if get_rank() == 0:
-            wandb.log({
-                "d": d_loss_val,
-                "g": g_loss_val,
-                "r1_val": r1_val
-            })
+            if args.enable_wandb:
+                wandb.log({
+                    "index": idx,
+                    "d": d_loss_val,
+                    "g": g_loss_val,
+                    "r1_val": r1_val
+                })
 
             pbar.set_description(
                 (
@@ -284,6 +286,11 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
 
                     if not os.path.exists(args.sample):
                         os.makedirs(args.sample)
+
+                    if args.enable_wandb:
+                        wandb.log({
+                            "sample": wandb.Image(sample.cpu(), caption=f"Sample image for {i} index")
+                        })
 
                     utils.save_image(
                         sample,
