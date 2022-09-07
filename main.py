@@ -26,6 +26,8 @@ BASE_DIR = "./"
 PHOTOS_DIR = "../photos/pp"
 PRETRAINED_MODEL = None # "weights/GPEN-Colorization-1024.pth"
 
+ENABLE_WANDB = False
+
 SAVE_EVERY = 10_000
 ITERATIONS = 4_000_000
 
@@ -181,5 +183,6 @@ if __name__ == "__main__":
         r1 = 10
         start_iter = 0
         distributed = False
+        enable_wandb = ENABLE_WANDB
 
     train(Args, loader, generator, discriminator, [smooth_l1_loss, id_loss], g_optim, d_optim, g_ema, lpips_func, device)

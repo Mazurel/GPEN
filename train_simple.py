@@ -35,6 +35,8 @@ from distributed import (
 
 from training import lpips
 
+import wandb
+
 
 def data_sampler(dataset, shuffle, distributed=False):
     if distributed:
@@ -134,6 +136,10 @@ def validation(model, lpips_func, args, device):
 
 
 def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_ema, lpips_func, device):
+    if args.enable_wandb:
+        wandb.init(project="gpen")
+
+
     loader = sample_data(loader)
 
     pbar = range(0, args.iter)
@@ -258,6 +264,12 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
         path_length_val = loss_reduced['path_length'].mean().item()
 
         if get_rank() == 0:
+            wandb.log({
+                "d": d_loss_val,
+                "g": g_loss_val,
+                "r1_val": r1_val
+            })
+
             pbar.set_description(
                 (
                     f'd: {d_loss_val:.4f}; g: {g_loss_val:.4f}; r1: {r1_val:.4f}; '
@@ -285,6 +297,8 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
                 print(f'{i}/{args.iter}: lpips: {lpips_value.cpu().numpy()[0][0][0][0]}')
 
             if i and i % args.save_freq == 0:
+                if not os.path.exists(args.ckpt):
+                    os.makedirs(args.ckpt)
                 torch.save(
                     {
                         'g': g_module.state_dict(),
