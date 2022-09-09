@@ -31,7 +31,7 @@ ENABLE_WANDB = False
 SAVE_EVERY = 10_000
 ITERATIONS = 4_000_000
 
-SIZE = 128  # Image size
+SIZE = 32  # Image size
 LATENT = 32
 N_MLP = 2
 CHANNEL_MULTIPLIER = 2
@@ -171,9 +171,9 @@ if __name__ == "__main__":
     class Args:
         save_freq = SAVE_EVERY
         iter = ITERATIONS
-        sample = "sample"
+        sample = SAMPLE_FOLDER
         val_dir = "val"
-        ckpt = "ckpts"
+        ckpt = CHECKPOINTS_FOLDER
         size = SIZE
         path_batch_shrink = 2
         g_reg_every = G_REG_EVERY

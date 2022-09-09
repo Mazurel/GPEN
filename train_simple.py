@@ -287,11 +287,6 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
                     if not os.path.exists(args.sample):
                         os.makedirs(args.sample)
 
-                    if args.enable_wandb:
-                        wandb.log({
-                            "sample": wandb.Image(sample.cpu(), caption=f"Sample image for {i} index")
-                        })
-
                     utils.save_image(
                         sample,
                         f'{args.sample}/{str(i).zfill(6)}.png',
@@ -303,9 +298,17 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
                 lpips_value = validation(g_ema, lpips_func, args, device)
                 print(f'{i}/{args.iter}: lpips: {lpips_value.cpu().numpy()[0][0][0][0]}')
 
+                if args.enable_wandb:
+                    wandb.log({
+                        "index": idx,
+                        "lpips": lpips_value,
+                        "Sample prediction": wandb.Image(sample.cpu(), caption=f"Sample prediction for {i}th index"),
+                    })
+
             if i and i % args.save_freq == 0:
                 if not os.path.exists(args.ckpt):
                     os.makedirs(args.ckpt)
+                model_path = f'{args.ckpt}/{str(i).zfill(6)}.pth'
                 torch.save(
                     {
                         'g': g_module.state_dict(),
@@ -314,8 +317,11 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
                         'g_optim': g_optim.state_dict(),
                         'd_optim': d_optim.state_dict(),
                     },
-                    f'{args.ckpt}/{str(i).zfill(6)}.pth',
+                    model_path
                 )
+
+                if args.enable_wandb:
+                    wandb.save(model_path, policy="now")
 
 
 if __name__ == '__main__':
