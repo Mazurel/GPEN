@@ -4,19 +4,11 @@ from DPR import DPR_512
 import os
 import sys
 from random import randint
+from argparse import ArgumentParser
+from pathlib import Path
 
 import numpy as np
 from matplotlib import pyplot as plt
-
-import torch
-from torch import nn, autograd, optim
-from torch.utils import data
-
-# GPEN:
-from face_model.gpen_model import FullGenerator, Discriminator
-from train_simple import accumulate, train, data_sampler
-from training.loss.id_loss import IDLoss
-from training import lpips
 
 # Constants
 
@@ -31,7 +23,7 @@ ENABLE_WANDB = False
 SAVE_EVERY = 10_000
 ITERATIONS = 4_000_000
 
-SIZE = 32  # Image size
+SIZE = 512  # Image size
 LATENT = 32
 N_MLP = 2
 CHANNEL_MULTIPLIER = 2
@@ -105,84 +97,142 @@ def input_output_grid(data):
 
 
 if __name__ == "__main__":
-    relighted_dataset = RelightedDataset(PHOTOS_DIR)
+    parser = ArgumentParser()
+    subparsers = parser.add_subparsers(help="Commands", dest="command")
+    train_parser = subparsers.add_parser("train")
+    run_parser = subparsers.add_parser("run")
+    run_parser.add_argument("image", type=Path, help="Image to be transformed")
+    run_parser.add_argument("--model", type=Path, help="Model to be used")
+    args = parser.parse_args()
 
-    os.makedirs(CHECKPOINTS_FOLDER, exist_ok=True)
-    os.makedirs(SAMPLE_FOLDER, exist_ok=True)
+    if args.command == "run":
+        import torch
+        from torch.nn import functional as F
 
-    if not torch.cuda.is_available():
-        raise RuntimeError("Cuda is not avaible")
+        import cv2
 
-    device = "cuda"
+        from face_model.gpen_model import FullGenerator
+        from train_simple import requires_grad
 
-    generator = FullGenerator(
-        SIZE, LATENT, N_MLP, channel_multiplier=CHANNEL_MULTIPLIER, narrow=NARROW, device=device
-    ).to(device)
-    discriminator = Discriminator(
-        SIZE, channel_multiplier=CHANNEL_MULTIPLIER, narrow=NARROW, device=device
-    ).to(device)
-    g_ema = FullGenerator(
-        SIZE, LATENT, N_MLP, channel_multiplier=CHANNEL_MULTIPLIER, narrow=NARROW, device=device
-    ).to(device)
+        if not torch.cuda.is_available():
+            raise RuntimeError("Cuda is not avaible")
 
-    g_ema.eval()
-    accumulate(g_ema, generator, 0)
+        device = "cuda"
 
-    g_reg_ratio = G_REG_EVERY / (G_REG_EVERY + 1)
-    d_reg_ratio = D_REG_EVERY / (D_REG_EVERY + 1)
+        generator = FullGenerator(
+            SIZE, LATENT, N_MLP, channel_multiplier=CHANNEL_MULTIPLIER, narrow=NARROW, device=device
+        ).to(device)
+        requires_grad(generator, False)
 
-    g_optim = optim.Adam(
-        generator.parameters(),
-        lr=LR * g_reg_ratio,
-        betas=(0 ** g_reg_ratio, 0.99 ** g_reg_ratio),
-    )
+        print('load model:', args.model)
+        ckpt = torch.load(args.model.as_posix())
+        generator.load_state_dict(ckpt['g_ema'])
 
-    d_optim = optim.Adam(
-        discriminator.parameters(),
-        lr=LR * d_reg_ratio,
-        betas=(0 ** d_reg_ratio, 0.99 ** d_reg_ratio),
-    )
+        dpr = DPR_512((SIZE, SIZE))
+        _, loaded_image = dpr.relighten(args.image.as_posix(), 0)
+        cv2.imshow("Input", cv2.cvtColor(loaded_image, cv2.COLOR_RGB2BGR))
 
-    # TODO: Fix loading pretrained model
-    if PRETRAINED_MODEL is not None:
-        print('load model:', PRETRAINED_MODEL)
+        # loaded_image = cv2.imread(args.image.as_posix(), cv2.IMREAD_COLOR)
+        # cv2.imshow("Input", loaded_image)
+        target_image = torch.from_numpy(loaded_image).to(device).permute(2, 0, 1).unsqueeze(0)
+        target_image = (target_image/255.-0.5)/0.5
+        target_image = F.interpolate(target_image, (SIZE, SIZE))
+        target_image = torch.flip(target_image, [1])
 
-        ckpt = torch.load(PRETRAINED_MODEL)
+        pred_image, _ = generator(target_image)
+        pred_image = pred_image[0].cpu().numpy()
+        pred_image = np.moveaxis(pred_image, 0, 2)
+        # pred_image = cv2.cvtColor(pred_image, cv2.COLOR_RGB2BGR)
+        cv2.imshow("Processed", pred_image)
+        cv2.waitKey(0)
 
-        generator.load_state_dict(ckpt['g'])
-        discriminator.load_state_dict(ckpt['d'])
-        g_ema.load_state_dict(ckpt['g_ema'])
+    elif args.command == "train":
+        import torch
+        from torch import nn, autograd, optim
+        from torch.utils import data
 
-        g_optim.load_state_dict(ckpt['g_optim'])
-        d_optim.load_state_dict(ckpt['d_optim'])
+        from face_model.gpen_model import FullGenerator, Discriminator
+        from train_simple import accumulate, train, data_sampler
+        from training.loss.id_loss import IDLoss
+        from training import lpips
 
-    smooth_l1_loss = torch.nn.SmoothL1Loss().to(device)
-    id_loss = IDLoss(BASE_DIR, device, ckpt_dict=None)
-    lpips_func = lpips.LPIPS(net='alex', version='0.1').to(device)
+        relighted_dataset = RelightedDataset(PHOTOS_DIR)
 
-    dataset = relighted_dataset
-    loader = data.DataLoader(
-        dataset,
-        batch_size=BATCH_SIZE,
-        sampler=data_sampler(dataset, shuffle=True),
-        drop_last=True,
-    )
+        os.makedirs(CHECKPOINTS_FOLDER, exist_ok=True)
+        os.makedirs(SAMPLE_FOLDER, exist_ok=True)
 
-    class Args:
-        save_freq = SAVE_EVERY
-        iter = ITERATIONS
-        sample = SAMPLE_FOLDER
-        val_dir = "val"
-        ckpt = CHECKPOINTS_FOLDER
-        size = SIZE
-        path_batch_shrink = 2
-        g_reg_every = G_REG_EVERY
-        path_regularize = 2
-        batch = BATCH_SIZE
-        d_reg_every = D_REG_EVERY
-        r1 = 10
-        start_iter = 0
-        distributed = False
-        enable_wandb = ENABLE_WANDB
+        if not torch.cuda.is_available():
+            raise RuntimeError("Cuda is not avaible")
 
-    train(Args, loader, generator, discriminator, [smooth_l1_loss, id_loss], g_optim, d_optim, g_ema, lpips_func, device)
+        device = "cuda"
+
+        generator = FullGenerator(
+            SIZE, LATENT, N_MLP, channel_multiplier=CHANNEL_MULTIPLIER, narrow=NARROW, device=device
+        ).to(device)
+        discriminator = Discriminator(
+            SIZE, channel_multiplier=CHANNEL_MULTIPLIER, narrow=NARROW, device=device
+        ).to(device)
+        g_ema = FullGenerator(
+            SIZE, LATENT, N_MLP, channel_multiplier=CHANNEL_MULTIPLIER, narrow=NARROW, device=device
+        ).to(device)
+
+        g_ema.eval()
+        accumulate(g_ema, generator, 0)
+
+        g_reg_ratio = G_REG_EVERY / (G_REG_EVERY + 1)
+        d_reg_ratio = D_REG_EVERY / (D_REG_EVERY + 1)
+
+        g_optim = optim.Adam(
+            generator.parameters(),
+            lr=LR * g_reg_ratio,
+            betas=(0 ** g_reg_ratio, 0.99 ** g_reg_ratio),
+        )
+
+        d_optim = optim.Adam(
+            discriminator.parameters(),
+            lr=LR * d_reg_ratio,
+            betas=(0 ** d_reg_ratio, 0.99 ** d_reg_ratio),
+        )
+
+        if PRETRAINED_MODEL is not None:
+            print('load model:', PRETRAINED_MODEL)
+
+            ckpt = torch.load(PRETRAINED_MODEL)
+
+            generator.load_state_dict(ckpt['g'])
+            discriminator.load_state_dict(ckpt['d'])
+            g_ema.load_state_dict(ckpt['g_ema'])
+
+            g_optim.load_state_dict(ckpt['g_optim'])
+            d_optim.load_state_dict(ckpt['d_optim'])
+
+        smooth_l1_loss = torch.nn.SmoothL1Loss().to(device)
+        id_loss = IDLoss(BASE_DIR, device, ckpt_dict=None)
+        lpips_func = lpips.LPIPS(net='alex', version='0.1').to(device)
+
+        dataset = relighted_dataset
+        loader = data.DataLoader(
+            dataset,
+            batch_size=BATCH_SIZE,
+            sampler=data_sampler(dataset, shuffle=True),
+            drop_last=True,
+        )
+
+        class Args:
+            save_freq = SAVE_EVERY
+            iter = ITERATIONS
+            sample = SAMPLE_FOLDER
+            val_dir = "val"
+            ckpt = CHECKPOINTS_FOLDER
+            size = SIZE
+            path_batch_shrink = 2
+            g_reg_every = G_REG_EVERY
+            path_regularize = 2
+            batch = BATCH_SIZE
+            d_reg_every = D_REG_EVERY
+            r1 = 10
+            start_iter = 0
+            distributed = False
+            enable_wandb = ENABLE_WANDB
+
+        train(Args, loader, generator, discriminator, [smooth_l1_loss, id_loss], g_optim, d_optim, g_ema, lpips_func, device)

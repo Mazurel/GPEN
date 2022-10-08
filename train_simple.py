@@ -139,7 +139,6 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
     if args.enable_wandb:
         wandb.init(project="gpen")
 
-
     loader = sample_data(loader)
 
     pbar = range(0, args.iter)
@@ -177,6 +176,7 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
 
         degraded_img, real_img = next(loader)
         degraded_img = degraded_img.to(device)
+        fake_img, _ = generator(degraded_img)
         real_img = real_img.to(device)
 
         requires_grad(generator, False)
