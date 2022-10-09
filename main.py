@@ -103,6 +103,7 @@ if __name__ == "__main__":
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("image", type=Path, help="Image to be transformed")
     run_parser.add_argument("--model", type=Path, help="Model to be used")
+    run_parser.add_argument("--out-dir", type=Path, help="Write images to directory, instead of showing them")
     args = parser.parse_args()
 
     if args.command == "run":
@@ -128,14 +129,13 @@ if __name__ == "__main__":
         ckpt = torch.load(args.model.as_posix())
         generator.load_state_dict(ckpt['g_ema'])
 
-        dpr = DPR_512((SIZE, SIZE))
-        _, loaded_image = dpr.relighten(args.image.as_posix(), 0)
+        loaded_image = cv2.imread(args.image.as_posix(), cv2.IMREAD_COLOR)
+        loaded_image = cv2.resize(loaded_image, (SIZE, SIZE))
+        loaded_image = cv2.cvtColor(loaded_image, cv2.COLOR_BGR2RGB)
         cv2.imshow("Input", cv2.cvtColor(loaded_image, cv2.COLOR_RGB2BGR))
 
-        # loaded_image = cv2.imread(args.image.as_posix(), cv2.IMREAD_COLOR)
-        # cv2.imshow("Input", loaded_image)
         target_image = torch.from_numpy(loaded_image).to(device).permute(2, 0, 1).unsqueeze(0)
-        target_image = (target_image/255.-0.5)/0.5
+        target_image = target_image / 255.
         target_image = F.interpolate(target_image, (SIZE, SIZE))
         target_image = torch.flip(target_image, [1])
 
@@ -143,6 +143,7 @@ if __name__ == "__main__":
         pred_image = pred_image[0].cpu().numpy()
         pred_image = np.moveaxis(pred_image, 0, 2)
         # pred_image = cv2.cvtColor(pred_image, cv2.COLOR_RGB2BGR)
+
         cv2.imshow("Processed", pred_image)
         cv2.waitKey(0)
 
