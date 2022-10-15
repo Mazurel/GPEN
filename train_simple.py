@@ -295,8 +295,8 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
                         range=(-1, 1),
                     )
 
-                lpips_value = validation(g_ema, lpips_func, args, device)
-                print(f'{i}/{args.iter}: lpips: {lpips_value.cpu().numpy()[0][0][0][0]}')
+                # lpips_value = validation(g_ema, lpips_func, args, device)
+                # print(f'{i}/{args.iter}: lpips: {lpips_value.cpu().numpy()[0][0][0][0]}')
 
                 # De-zerocentre sample for wandb
                 sample *= .5
@@ -305,7 +305,7 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
                 if args.enable_wandb:
                     wandb.log({
                         "index": idx,
-                        "lpips": lpips_value,
+                        # "lpips": lpips_value,
                         "Sample prediction": wandb.Image(sample.cpu(), caption=f"Sample prediction for {i}th index"),
                     })
 
@@ -326,124 +326,3 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
 
                 if args.enable_wandb:
                     wandb.save(model_path, policy="now")
-
-
-if __name__ == '__main__':
-
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('--path', type=str, required=True)
-    parser.add_argument('--base_dir', type=str, default='./')
-    parser.add_argument('--iter', type=int, default=4000000)
-    parser.add_argument('--batch', type=int, default=4)
-    parser.add_argument('--size', type=int, default=256)
-    parser.add_argument('--channel_multiplier', type=int, default=2)
-    parser.add_argument('--narrow', type=float, default=1.0)
-    parser.add_argument('--r1', type=float, default=10)
-    parser.add_argument('--path_regularize', type=float, default=2)
-    parser.add_argument('--path_batch_shrink', type=int, default=2)
-    parser.add_argument('--d_reg_every', type=int, default=16)
-    parser.add_argument('--g_reg_every', type=int, default=4)
-    parser.add_argument('--save_freq', type=int, default=10000)
-    parser.add_argument('--lr', type=float, default=0.002)
-    parser.add_argument('--local_rank', type=int, default=0)
-    parser.add_argument('--ckpt', type=str, default='ckpts')
-    parser.add_argument('--pretrain', type=str, default=None)
-    parser.add_argument('--sample', type=str, default='sample')
-    parser.add_argument('--val_dir', type=str, default='val')
-
-    args = parser.parse_args()
-
-    os.makedirs(args.ckpt, exist_ok=True)
-    os.makedirs(args.sample, exist_ok=True)
-
-    device = 'cuda'
-
-    n_gpu = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1
-    args.distributed = n_gpu > 1
-
-    if args.distributed:
-        torch.cuda.set_device(args.local_rank)
-        torch.distributed.init_process_group(backend='nccl', init_method='env://')
-        synchronize()
-
-    args.latent = 512
-    args.n_mlp = 8
-
-    args.start_iter = 0
-
-    generator = FullGenerator(
-        args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier, narrow=args.narrow, device=device
-    ).to(device)
-    discriminator = Discriminator(
-        args.size, channel_multiplier=args.channel_multiplier, narrow=args.narrow, device=device
-    ).to(device)
-    g_ema = FullGenerator(
-        args.size, args.latent, args.n_mlp, channel_multiplier=args.channel_multiplier, narrow=args.narrow, device=device
-    ).to(device)
-    g_ema.eval()
-    accumulate(g_ema, generator, 0)
-
-    g_reg_ratio = args.g_reg_every / (args.g_reg_every + 1)
-    d_reg_ratio = args.d_reg_every / (args.d_reg_every + 1)
-    
-    g_optim = optim.Adam(
-        generator.parameters(),
-        lr=args.lr * g_reg_ratio,
-        betas=(0 ** g_reg_ratio, 0.99 ** g_reg_ratio),
-    )
-
-    d_optim = optim.Adam(
-        discriminator.parameters(),
-        lr=args.lr * d_reg_ratio,
-        betas=(0 ** d_reg_ratio, 0.99 ** d_reg_ratio),
-    )
-
-    if args.pretrain is not None:
-        print('load model:', args.pretrain)
-
-        ckpt = torch.load(args.pretrain)
-
-        generator.load_state_dict(ckpt['g'])
-        discriminator.load_state_dict(ckpt['d'])
-        g_ema.load_state_dict(ckpt['g_ema'])
-
-        g_optim.load_state_dict(ckpt['g_optim'])
-        d_optim.load_state_dict(ckpt['d_optim'])
-
-    smooth_l1_loss = torch.nn.SmoothL1Loss().to(device)
-    id_loss = IDLoss(args.base_dir, device, ckpt_dict=None)
-    lpips_func = lpips.LPIPS(net='alex',version='0.1').to(device)
-    
-    if args.distributed:
-        generator = nn.parallel.DistributedDataParallel(
-            generator,
-            device_ids=[args.local_rank],
-            output_device=args.local_rank,
-            broadcast_buffers=False,
-        )
-
-        discriminator = nn.parallel.DistributedDataParallel(
-            discriminator,
-            device_ids=[args.local_rank],
-            output_device=args.local_rank,
-            broadcast_buffers=False,
-        )
-
-        id_loss = nn.parallel.DistributedDataParallel(
-            id_loss,
-            device_ids=[args.local_rank],
-            output_device=args.local_rank,
-            broadcast_buffers=False,
-        )
-
-    dataset = FaceDataset(args.path, args.size)
-    loader = data.DataLoader(
-        dataset,
-        batch_size=args.batch,
-        sampler=data_sampler(dataset, shuffle=True, distributed=args.distributed),
-        drop_last=True,
-    )
-
-    train(args, loader, generator, discriminator, [smooth_l1_loss, id_loss], g_optim, d_optim, g_ema, lpips_func, device)
-   
