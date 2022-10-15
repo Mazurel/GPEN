@@ -18,7 +18,7 @@ BASE_DIR = "./"
 PHOTOS_DIR = "../photos/pp"
 PRETRAINED_MODEL = None # "weights/GPEN-Colorization-1024.pth"
 
-ENABLE_WANDB = False
+ENABLE_WANDB = True
 
 SAVE_EVERY = 10_000
 ITERATIONS = 4_000_000
@@ -64,9 +64,16 @@ class RelightedDataset:
             except AttributeError:  # Happens when loading image has failed
                 raise RuntimeError(f"Error loading {imagePath} !")
 
-        # Reorder axis for pytorch and rescale values
+        # Move channel to the front and normalize pixels
         inputImage = np.moveaxis(inputImage, 2, 0) / 255.0
         outputImage = np.moveaxis(outputImage, 2, 0) / 255.0
+
+        # Zero center pixels
+        inputImage -= 0.5
+        inputImage /= 0.5
+
+        outputImage -= 0.5
+        outputImage /= 0.5
 
         inputImage = np.array(inputImage, dtype=np.float32)
         outputImage = np.array(outputImage, dtype=np.float32)
@@ -100,8 +107,10 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     subparsers = parser.add_subparsers(help="Commands", dest="command")
     train_parser = subparsers.add_parser("train")
+    train_parser.add_argument("--model", type=Path, default=None, help="Pretrained model to be used")
+    train_parser.add_argument("--photos", type=Path, default=None, help="Photos to be used for training.")
     run_parser = subparsers.add_parser("run")
-    run_parser.add_argument("image", type=Path, help="Image to be transformed")
+    run_parser.add_argument("image", type=Path, nargs="+", help="Image to be transformed")
     run_parser.add_argument("--model", type=Path, help="Model to be used")
     run_parser.add_argument("--out-dir", type=Path, help="Write images to directory, instead of showing them")
     args = parser.parse_args()
@@ -129,23 +138,25 @@ if __name__ == "__main__":
         ckpt = torch.load(args.model.as_posix())
         generator.load_state_dict(ckpt['g_ema'])
 
-        loaded_image = cv2.imread(args.image.as_posix(), cv2.IMREAD_COLOR)
-        loaded_image = cv2.resize(loaded_image, (SIZE, SIZE))
-        loaded_image = cv2.cvtColor(loaded_image, cv2.COLOR_BGR2RGB)
-        cv2.imshow("Input", cv2.cvtColor(loaded_image, cv2.COLOR_RGB2BGR))
+        for image in args.image:
+            loaded_image = cv2.imread(image.as_posix(), cv2.IMREAD_COLOR)
+            loaded_image = cv2.resize(loaded_image, (SIZE, SIZE))
+            loaded_image = cv2.cvtColor(loaded_image, cv2.COLOR_BGR2RGB)
+            cv2.imshow("Input", cv2.cvtColor(loaded_image, cv2.COLOR_RGB2BGR))
 
-        target_image = torch.from_numpy(loaded_image).to(device).permute(2, 0, 1).unsqueeze(0)
-        target_image = target_image / 255.
-        target_image = F.interpolate(target_image, (SIZE, SIZE))
-        target_image = torch.flip(target_image, [1])
+            target_image = torch.from_numpy(loaded_image).to(device).permute(2, 0, 1).unsqueeze(0)
+            target_image = target_image / 255.
+            # TODO: Handle zero centering
+            target_image = F.interpolate(target_image, (SIZE, SIZE))
+            target_image = torch.flip(target_image, [1])
 
-        pred_image, _ = generator(target_image)
-        pred_image = pred_image[0].cpu().numpy()
-        pred_image = np.moveaxis(pred_image, 0, 2)
-        # pred_image = cv2.cvtColor(pred_image, cv2.COLOR_RGB2BGR)
+            pred_image, _ = generator(target_image)
+            pred_image = pred_image[0].cpu().numpy()
+            pred_image = np.moveaxis(pred_image, 0, 2)
+            # pred_image = cv2.cvtColor(pred_image, cv2.COLOR_RGB2BGR)
 
-        cv2.imshow("Processed", pred_image)
-        cv2.waitKey(0)
+            cv2.imshow("Processed", pred_image)
+            cv2.waitKey(0)
 
     elif args.command == "train":
         import torch
@@ -157,7 +168,7 @@ if __name__ == "__main__":
         from training.loss.id_loss import IDLoss
         from training import lpips
 
-        relighted_dataset = RelightedDataset(PHOTOS_DIR)
+        relighted_dataset = RelightedDataset(args.photos)
 
         os.makedirs(CHECKPOINTS_FOLDER, exist_ok=True)
         os.makedirs(SAMPLE_FOLDER, exist_ok=True)
@@ -195,10 +206,10 @@ if __name__ == "__main__":
             betas=(0 ** d_reg_ratio, 0.99 ** d_reg_ratio),
         )
 
-        if PRETRAINED_MODEL is not None:
-            print('load model:', PRETRAINED_MODEL)
+        if args.model is not None:
+            print('load model:', args.model)
 
-            ckpt = torch.load(PRETRAINED_MODEL)
+            ckpt = torch.load(args.model)
 
             generator.load_state_dict(ckpt['g'])
             discriminator.load_state_dict(ckpt['d'])
