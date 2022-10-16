@@ -174,7 +174,13 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
 
             break
 
-        degraded_img, real_img = next(loader)
+        try:
+            degraded_img, real_img = next(loader)
+        except Exception as ex:
+            print("Warning: could not load dataset element")
+            print(f"Exception: {ex}")
+            continue
+
         degraded_img = degraded_img.to(device)
         fake_img, _ = generator(degraded_img)
         real_img = real_img.to(device)
@@ -295,8 +301,8 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
                         range=(-1, 1),
                     )
 
-                # lpips_value = validation(g_ema, lpips_func, args, device)
-                # print(f'{i}/{args.iter}: lpips: {lpips_value.cpu().numpy()[0][0][0][0]}')
+                lpips_value = validation(g_ema, lpips_func, args, device)
+                print(f'{i}/{args.iter}: lpips: {lpips_value.cpu().numpy()[0][0][0][0]}')
 
                 # De-zerocentre sample for wandb
                 sample *= .5
