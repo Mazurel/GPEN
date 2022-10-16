@@ -64,8 +64,11 @@ def accumulate(model1, model2, decay=0.999):
 
 def sample_data(loader):
     while True:
-        for batch in loader:
-            yield batch
+        try:
+            for batch in loader:
+                yield batch
+        except Exception:
+            continue
 
 
 def d_logistic_loss(real_pred, fake_pred):
@@ -174,12 +177,7 @@ def train(args, loader, generator, discriminator, losses, g_optim, d_optim, g_em
 
             break
 
-        try:
-            degraded_img, real_img = next(loader)
-        except Exception as ex:
-            print("Warning: could not load dataset element")
-            print(f"Exception: {ex}")
-            continue
+        degraded_img, real_img = next(loader)
 
         degraded_img = degraded_img.to(device)
         fake_img, _ = generator(degraded_img)
