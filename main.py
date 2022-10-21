@@ -112,7 +112,8 @@ if __name__ == "__main__":
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("image", type=Path, nargs="+", help="Image to be transformed")
     run_parser.add_argument("--model", type=Path, help="Model to be used")
-    run_parser.add_argument("--out-dir", type=Path, help="Write images to directory, instead of showing them")
+    run_parser.add_argument("--out-dir", type=Path, default=None, help="Write images to directory, instead of showing them")
+    run_parser.add_argument("--by-side", action="store_true", default=False)
     args = parser.parse_args()
 
     if args.command == "run":
@@ -134,29 +135,50 @@ if __name__ == "__main__":
         ).to(device)
         requires_grad(generator, False)
 
-        print('load model:', args.model)
+        print("Loaded model: ", args.model)
         ckpt = torch.load(args.model.as_posix())
         generator.load_state_dict(ckpt['g_ema'])
+        generator.eval()
+
+        if args.out_dir is not None and not os.path.exists(args.out_dir):
+            os.makedirs(args.out_dir)
 
         for image in args.image:
-            loaded_image = cv2.imread(image.as_posix(), cv2.IMREAD_COLOR)
-            loaded_image = cv2.resize(loaded_image, (SIZE, SIZE))
-            loaded_image = cv2.cvtColor(loaded_image, cv2.COLOR_BGR2RGB)
-            cv2.imshow("Input", cv2.cvtColor(loaded_image, cv2.COLOR_RGB2BGR))
+            initially_loaded_image = cv2.imread(image.as_posix(), cv2.IMREAD_COLOR)
+            initially_loaded_image = cv2.resize(initially_loaded_image, (SIZE, SIZE))
 
-            target_image = torch.from_numpy(loaded_image).to(device).permute(2, 0, 1).unsqueeze(0)
-            target_image = target_image / 255.
-            # TODO: Handle zero centering
-            target_image = F.interpolate(target_image, (SIZE, SIZE))
-            target_image = torch.flip(target_image, [1])
+            if args.out_dir is None:
+                cv2.imshow("Input", initially_loaded_image)
+
+            loaded_image = cv2.cvtColor(initially_loaded_image, cv2.COLOR_BGR2RGB)
+            loaded_image = np.moveaxis(loaded_image, 2, 0) / 255.0
+            loaded_image -= 0.5
+            loaded_image /= 0.5
+            loaded_image = np.array(loaded_image, dtype="float32")
+            target_image = torch.from_numpy(loaded_image).to(device).unsqueeze(0)
 
             pred_image, _ = generator(target_image)
-            pred_image = pred_image[0].cpu().numpy()
-            pred_image = np.moveaxis(pred_image, 0, 2)
-            # pred_image = cv2.cvtColor(pred_image, cv2.COLOR_RGB2BGR)
+            pred_image = pred_image[0]
+            pred_image *= 0.5
+            pred_image += 0.5
+            pred_image = pred_image.cpu().numpy()
+            pred_image = np.moveaxis(pred_image, 0, 2) * 255
+            pred_image = np.array(pred_image, "uint8")
+            pred_image = cv2.cvtColor(pred_image, cv2.COLOR_RGB2BGR)
 
-            cv2.imshow("Processed", pred_image)
-            cv2.waitKey(0)
+            if args.out_dir is None:
+                cv2.imshow("Processed", pred_image)
+                cv2.waitKey(0)
+            elif os.path.exists(args.out_dir):
+                pth = os.path.join(args.out_dir, image.name)
+                if args.by_side:
+                    byside_pred_image = np.zeros((SIZE, SIZE * 2, 3))
+                    byside_pred_image[0:SIZE, 0:SIZE, :] = initially_loaded_image
+                    byside_pred_image[0:SIZE, SIZE:2*SIZE, :] = pred_image
+                    cv2.imwrite(pth, byside_pred_image)
+                else:
+                    cv2.imwrite(pth, pred_image)
+                print(f"Written image to {pth}")
 
     elif args.command == "train":
         import torch
