@@ -20,7 +20,7 @@ PRETRAINED_MODEL = None # "weights/GPEN-Colorization-1024.pth"
 
 ENABLE_WANDB = True
 
-SAVE_EVERY = 10_000
+SAVE_EVERY = 300
 ITERATIONS = 4_000_000
 
 SIZE = 512  # Image size
