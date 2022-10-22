@@ -1,6 +1,6 @@
 # GPEN for face relightening
 
-This repo contains code for my Engineering thesis called.
+This repo contains code for my Engineering thesis called "Equalizing facial lightning in portraits using generative neural networks".
 
 It is based on: https://github.com/yangxy/GPEN
 
