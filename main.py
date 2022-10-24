@@ -15,8 +15,6 @@ from matplotlib import pyplot as plt
 CHECKPOINTS_FOLDER = "checkpoints/"
 SAMPLE_FOLDER = "samples/"
 BASE_DIR = "./"
-PHOTOS_DIR = "../photos/pp"
-PRETRAINED_MODEL = None # "weights/GPEN-Colorization-1024.pth"
 
 ENABLE_WANDB = True
 
@@ -85,22 +83,6 @@ class RelightedDataset:
         filename = os.path.basename(file)
         extension = filename.split(".")[-1]
         return extension in ["jpg", "png"]
-
-
-def input_output_grid(data):
-    LEN = 8
-
-    width = LEN * SIZE
-    height = SIZE * 2
-
-    outMat = np.zeros((height, width, 3), dtype=np.float32)
-
-    for i, j in enumerate([randint(0, len(data)) for _ in range(LEN)]):
-        inp, out = data[j]
-        outMat[0:SIZE, i*SIZE:(i+1)*SIZE, :] = out[:, :, :] / 255
-        outMat[SIZE:2*SIZE, i*SIZE:(i+1)*SIZE, :] = inp[:, :, :] / 255
-
-    return outMat
 
 
 if __name__ == "__main__":
