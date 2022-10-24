@@ -113,7 +113,7 @@ if __name__ == "__main__":
     run_parser.add_argument("image", type=Path, nargs="+", help="Image to be transformed")
     run_parser.add_argument("--model", type=Path, help="Model to be used")
     run_parser.add_argument("--out-dir", type=Path, default=None, help="Write images to directory, instead of showing them")
-    run_parser.add_argument("--by-side", action="store_true", default=False)
+    run_parser.add_argument("--by-side", action="store_true", default=False, help="When writing images to file, show input & output image by side.")
     args = parser.parse_args()
 
     if args.command == "run":
@@ -121,6 +121,7 @@ if __name__ == "__main__":
         from torch.nn import functional as F
 
         import cv2
+        from tqdm import tqdm
 
         from face_model.gpen_model import FullGenerator
         from train_simple import requires_grad
@@ -143,7 +144,9 @@ if __name__ == "__main__":
         if args.out_dir is not None and not os.path.exists(args.out_dir):
             os.makedirs(args.out_dir)
 
-        for image in args.image:
+        loop_ctrl = tqdm(args.image, "Processing images ...")
+
+        for image in loop_ctrl:
             initially_loaded_image = cv2.imread(image.as_posix(), cv2.IMREAD_COLOR)
             initially_loaded_image = cv2.resize(initially_loaded_image, (SIZE, SIZE))
 
@@ -178,7 +181,7 @@ if __name__ == "__main__":
                     cv2.imwrite(pth, byside_pred_image)
                 else:
                     cv2.imwrite(pth, pred_image)
-                print(f"Written image to {pth}")
+                loop_ctrl.set_description(f"Written: {pth}")
 
     elif args.command == "train":
         import torch
