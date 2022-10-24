@@ -4,6 +4,12 @@ This repo contains code for my Engineering thesis called "Equalizing facial ligh
 
 It is based on: https://github.com/yangxy/GPEN
 
+## Quick links
+
+- Wandb trainings: https://wandb.ai/mazurel/gpen
+- Latest model: https://api.wandb.ai/files/mazurel/gpen/36zj06i2/checkpoints/005100.pth
+- Docker image (may be outdated and required pulling the repo): https://hub.docker.com/repository/docker/mazurel/gpen
+
 ## How it works
 
 TODO
