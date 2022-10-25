@@ -6,19 +6,18 @@ If not, remove the corrupted photo.
 import os
 import sys
 from pathlib import Path
+from multiprocessing.pool import Pool
 
 import cv2
 from tqdm import tqdm
 
-folder = sys.argv[1]
 
-for file in tqdm(os.listdir(folder)):
+def extensions_filter(file):
     _, extension = os.path.splitext(file)
+    return extension not in ["jpg", "jpeg", "png"]
 
-    if extension[1:] not in ["jpg", "jpeg", "png"]:
-        continue
 
-    path = os.path.join(folder, file)
+def verify_image(path):
     try:
         # Try if image can be red by cv2
         img = cv2.imread(path)
@@ -27,3 +26,17 @@ for file in tqdm(os.listdir(folder)):
         print(f"Could not load {path}, removing corrupted file (reason: {ex}).")
         os.remove(path)
 
+
+def main():
+    folder = sys.argv[1]
+    files = os.listdir(folder)
+    files = filter(extensions_filter, files)
+    files = map(lambda file: os.path.join(folder, file), files)
+    files = list(files)
+
+    with Pool() as pool:
+        list(tqdm(pool.imap(verify_image, files), total=len(files)))
+
+
+if __name__ == "__main__":
+    main()
