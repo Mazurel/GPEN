@@ -243,8 +243,8 @@ if __name__ == "__main__":
         elif args.generator_model is not None:
             print(f"Loading generator model: {args.generator_model}")
             ckpt = torch.load(args.generator_model)
-            generator.load_state_dict('g')
-            g_ema.load_state_dict('g_ema')
+            generator.load_state_dict(ckpt)
+            g_ema.load_state_dict(ckpt)
 
         smooth_l1_loss = torch.nn.SmoothL1Loss().to(device)
         id_loss = IDLoss(BASE_DIR, device, ckpt_dict=None)
