@@ -227,14 +227,20 @@ if __name__ == "__main__":
             print(f"Loading global model: {args.model}")
             ckpt = torch.load(args.model)
 
-            generator.load_state_dict(ckpt['g'])
+            if args.generator_model is not None:
+                print(f"Loading generator model: {args.generator_model}")
+                g_ckpt = torch.load(args.generator_model)
+                generator.load_state_dict(g_ckpt)
+                g_ema.load_state_dict(g_ckpt)
+            else:
+                generator.load_state_dict(ckpt['g'])
+                g_ema.load_state_dict(ckpt['g_ema'])
+
             discriminator.load_state_dict(ckpt['d'])
-            g_ema.load_state_dict(ckpt['g_ema'])
 
             g_optim.load_state_dict(ckpt['g_optim'])
             d_optim.load_state_dict(ckpt['d_optim'])
-
-        if args.generator_model is not None:
+        elif args.generator_model is not None:
             print(f"Loading generator model: {args.generator_model}")
             ckpt = torch.load(args.generator_model)
             generator.load_state_dict('g')

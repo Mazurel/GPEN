@@ -13,6 +13,7 @@ RUN git clone -b pydrive https://github.com/jeremyfix/ffhq-dataset && \
 # Setup GPEN repo
 WORKDIR /workspace/GPEN
 RUN pip3 install -r requirements.txt && \
-    wget --quiet "https://public-vigen-video.oss-cn-shanghai.aliyuncs.com/robin/models/model_ir_se50.pth?OSSAccessKeyId=LTAI4G6bfnyW4TA4wFUXTYBe&Expires=1961116170&Signature=jEyBslytwpWoh5DfKvYe2H31GgE%3D" -O weights/model_ir_se50.pth
+    wget --quiet "https://public-vigen-video.oss-cn-shanghai.aliyuncs.com/robin/models/model_ir_se50.pth?OSSAccessKeyId=LTAI4G6bfnyW4TA4wFUXTYBe&Expires=1961116170&Signature=jEyBslytwpWoh5DfKvYe2H31GgE%3D" -O weights/model_ir_se50.pth && \
+    wget --quiet "https://public-vigen-video.oss-cn-shanghai.aliyuncs.com/robin/models/GPEN-BFR-512.pth?OSSAccessKeyId=LTAI4G6bfnyW4TA4wFUXTYBe&Expires=1961116208&Signature=hBgvVvKVSNGeXqT8glG%2Bd2t2OKc%3D" -O weights/GPEN-BFR-512.pth
 
 WORKDIR /workspace

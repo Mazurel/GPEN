@@ -38,6 +38,8 @@ Steps to get the dataset:
 cd /workspace/ffhq-dataset
 # Setup Google Drive client secrets here (or not use --pydrive)
 python download_ffhq.py --json --images --pydrive --cmd_auth
+# Create folder for the photos
+mkdir /workspace/photos/
 # Move photos to /workspace/photos/. You cannot use one `mv` as there to many images, so it requires simple WA:
 for dir in $(ls /workspace/ffhq-dataset/images1024x1024/); do mv /workspace/ffhq-dataset/images1024x1024/$dir/*.png /workspace/photos/; done
 # Verify downloaded photos
