@@ -22,8 +22,8 @@ SAVE_EVERY = 300
 ITERATIONS = 4_000_000
 
 SIZE = 512  # Image size
-LATENT = 32
-N_MLP = 2
+LATENT = 512
+N_MLP = 8
 CHANNEL_MULTIPLIER = 2
 NARROW = 1.0
 
@@ -90,10 +90,12 @@ if __name__ == "__main__":
     subparsers = parser.add_subparsers(help="Commands", dest="command")
     train_parser = subparsers.add_parser("train")
     train_parser.add_argument("--model", type=Path, default=None, help="Pretrained model to be used")
+    train_parser.add_argument("--generator-model", type=Path, default=None, help="Pretrained model to be used for generator.")
     train_parser.add_argument("--photos", type=Path, default=None, help="Photos to be used for training.")
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("image", type=Path, nargs="+", help="Image to be transformed")
     run_parser.add_argument("--model", type=Path, help="Model to be used")
+    run_parser.add_argument("--generator-model", type=Path, default=None, help="Pretrained model to be used (Generator only).")
     run_parser.add_argument("--out-dir", type=Path, default=None, help="Write images to directory, instead of showing them")
     run_parser.add_argument("--by-side", action="store_true", default=False, help="When writing images to file, show input & output image by side.")
     args = parser.parse_args()
@@ -105,7 +107,7 @@ if __name__ == "__main__":
         import cv2
         from tqdm import tqdm
 
-        from face_model.gpen_model import FullGenerator
+        from face_model.gpen_model import FullGenerator, FullGenerator_SR
         from train_simple import requires_grad
 
         if not torch.cuda.is_available():
@@ -118,9 +120,17 @@ if __name__ == "__main__":
         ).to(device)
         requires_grad(generator, False)
 
-        print("Loaded model: ", args.model)
-        ckpt = torch.load(args.model.as_posix())
-        generator.load_state_dict(ckpt['g_ema'])
+        if args.model is not None and args.generator_model is not None:
+            raise RuntimeError("Specyfing generator model and normal model is invalid !")
+        if args.model is None and args.generator_model is None:
+            raise RuntimeError("No model provided !")
+
+        model = args.model if args.model is not None else args.generator_model
+        print(f"Loading model: {model}")
+        ckpt = torch.load(model.as_posix())
+        if args.model is not None:
+            ckpt = ckpt["g_ema"]
+        generator.load_state_dict(ckpt)
         generator.eval()
 
         if args.out_dir is not None and not os.path.exists(args.out_dir):
@@ -214,8 +224,7 @@ if __name__ == "__main__":
         )
 
         if args.model is not None:
-            print('load model:', args.model)
-
+            print(f"Loading global model: {args.model}")
             ckpt = torch.load(args.model)
 
             generator.load_state_dict(ckpt['g'])
@@ -224,6 +233,12 @@ if __name__ == "__main__":
 
             g_optim.load_state_dict(ckpt['g_optim'])
             d_optim.load_state_dict(ckpt['d_optim'])
+
+        if args.generator_model is not None:
+            print(f"Loading generator model: {args.generator_model}")
+            ckpt = torch.load(args.generator_model)
+            generator.load_state_dict('g')
+            g_ema.load_state_dict('g_ema')
 
         smooth_l1_loss = torch.nn.SmoothL1Loss().to(device)
         id_loss = IDLoss(BASE_DIR, device, ckpt_dict=None)
