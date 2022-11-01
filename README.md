@@ -7,7 +7,7 @@ It is based on: https://github.com/yangxy/GPEN
 ## Quick links
 
 - Wandb trainings: https://wandb.ai/mazurel/gpen
-- Latest model: https://api.wandb.ai/files/mazurel/gpen/36zj06i2/checkpoints/005100.pth
+- Latest model: https://api.wandb.ai/files/mazurel/gpen/2wk2h9e5/checkpoints/011000.pth
 - Docker image (may be outdated and required pulling the repo): https://hub.docker.com/repository/docker/mazurel/gpen
 
 ## How it works
