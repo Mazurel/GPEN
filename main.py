@@ -57,7 +57,8 @@ class RelightedDataset:
         while True:
             imagePath = self.images[idx // self._dpr.lightsAmount()]
             try:
-                inputImage, outputImage = self._dpr.relighten(imagePath, idx % self._dpr.lightsAmount())
+                inputImage, outputImage = self._dpr.relighten(
+                    imagePath, idx % self._dpr.lightsAmount())
                 break
             except AttributeError:  # Happens when loading image has failed
                 raise RuntimeError(f"Error loading {imagePath} !")
@@ -89,15 +90,22 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     subparsers = parser.add_subparsers(help="Commands", dest="command")
     train_parser = subparsers.add_parser("train")
-    train_parser.add_argument("--model", type=Path, default=None, help="Pretrained model to be used")
-    train_parser.add_argument("--generator-model", type=Path, default=None, help="Pretrained model to be used for generator.")
-    train_parser.add_argument("--photos", type=Path, default=None, help="Photos to be used for training.")
+    train_parser.add_argument("--model", type=Path,
+                              default=None, help="Pretrained model to be used")
+    train_parser.add_argument("--generator-model", type=Path,
+                              default=None, help="Pretrained model to be used for generator.")
+    train_parser.add_argument(
+        "--photos", type=Path, default=None, help="Photos to be used for training.")
     run_parser = subparsers.add_parser("run")
-    run_parser.add_argument("image", type=Path, nargs="+", help="Image to be transformed")
+    run_parser.add_argument("image", type=Path, nargs="+",
+                            help="Image to be transformed")
     run_parser.add_argument("--model", type=Path, help="Model to be used")
-    run_parser.add_argument("--generator-model", type=Path, default=None, help="Pretrained model to be used (Generator only).")
-    run_parser.add_argument("--out-dir", type=Path, default=None, help="Write images to directory, instead of showing them")
-    run_parser.add_argument("--by-side", action="store_true", default=False, help="When writing images to file, show input & output image by side.")
+    run_parser.add_argument("--generator-model", type=Path, default=None,
+                            help="Pretrained model to be used (Generator only).")
+    run_parser.add_argument("--out-dir", type=Path, default=None,
+                            help="Write images to directory, instead of showing them")
+    run_parser.add_argument("--by-side", action="store_true", default=False,
+                            help="When writing images to file, show input & output image by side.")
     args = parser.parse_args()
 
     if args.command == "run":
@@ -121,7 +129,8 @@ if __name__ == "__main__":
         requires_grad(generator, False)
 
         if args.model is not None and args.generator_model is not None:
-            raise RuntimeError("Specyfing generator model and normal model is invalid !")
+            raise RuntimeError(
+                "Specyfing generator model and normal model is invalid !")
         if args.model is None and args.generator_model is None:
             raise RuntimeError("No model provided !")
 
@@ -139,36 +148,49 @@ if __name__ == "__main__":
         loop_ctrl = tqdm(args.image, "Processing images ...")
 
         for image in loop_ctrl:
-            initially_loaded_image = cv2.imread(image.as_posix(), cv2.IMREAD_COLOR)
-            initially_loaded_image = cv2.resize(initially_loaded_image, (SIZE, SIZE))
+            initially_loaded_image = cv2.imread(image.as_posix())
+            initially_loaded_image = cv2.resize(
+                initially_loaded_image, (SIZE, SIZE))
 
-            if args.out_dir is None:
-                cv2.imshow("Input", initially_loaded_image)
-
-            loaded_image = cv2.cvtColor(initially_loaded_image, cv2.COLOR_BGR2RGB)
+            loaded_image = cv2.cvtColor(
+                initially_loaded_image, cv2.COLOR_BGR2RGB)
             loaded_image = np.moveaxis(loaded_image, 2, 0) / 255.0
             loaded_image -= 0.5
             loaded_image /= 0.5
             loaded_image = np.array(loaded_image, dtype="float32")
-            target_image = torch.from_numpy(loaded_image).to(device).unsqueeze(0)
+            target_image = torch.from_numpy(
+                loaded_image).to(device).unsqueeze(0)
 
             pred_image, _ = generator(target_image)
             pred_image = pred_image[0]
+            pred_image = torch.clip(pred_image, -1, 1)
             pred_image *= 0.5
             pred_image += 0.5
+            pred_image *= 255
             pred_image = pred_image.cpu().numpy()
-            pred_image = np.moveaxis(pred_image, 0, 2) * 255
+            pred_image = np.moveaxis(pred_image, 0, 2)
             pred_image = np.array(pred_image, "uint8")
             pred_image = cv2.cvtColor(pred_image, cv2.COLOR_RGB2BGR)
 
             if args.out_dir is None:
-                cv2.imshow("Processed", pred_image)
+                if args.by_side:
+                    byside_pred_image = np.zeros(
+                        (SIZE, SIZE * 2, 3), dtype="uint8")
+                    byside_pred_image[0:SIZE, 0:SIZE,
+                                      :] = initially_loaded_image
+                    byside_pred_image[0:SIZE, SIZE:2*SIZE, :] = pred_image
+                    cv2.imshow("Result", byside_pred_image)
+                else:
+                    cv2.imshow("Input", initially_loaded_image)
+                    cv2.imshow("Processed", pred_image)
+                loop_ctrl.set_description(f"Showed: {image.as_posix()}")
                 cv2.waitKey(0)
             elif os.path.exists(args.out_dir):
                 pth = os.path.join(args.out_dir, image.name)
                 if args.by_side:
                     byside_pred_image = np.zeros((SIZE, SIZE * 2, 3))
-                    byside_pred_image[0:SIZE, 0:SIZE, :] = initially_loaded_image
+                    byside_pred_image[0:SIZE, 0:SIZE,
+                                      :] = initially_loaded_image
                     byside_pred_image[0:SIZE, SIZE:2*SIZE, :] = pred_image
                     cv2.imwrite(pth, byside_pred_image)
                 else:
@@ -177,7 +199,7 @@ if __name__ == "__main__":
 
     elif args.command == "train":
         import torch
-        from torch import nn, autograd, optim
+        from torch import optim
         from torch.utils import data
 
         from face_model.gpen_model import FullGenerator, Discriminator
@@ -275,4 +297,5 @@ if __name__ == "__main__":
             distributed = False
             enable_wandb = ENABLE_WANDB
 
-        train(Args, loader, generator, discriminator, [smooth_l1_loss, id_loss], g_optim, d_optim, g_ema, lpips_func, device)
+        train(Args, loader, generator, discriminator, [
+              smooth_l1_loss, id_loss], g_optim, d_optim, g_ema, lpips_func, device)
