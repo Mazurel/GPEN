@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+
+[ ! $GPEN_WORKDIR ] && export GPEN_WORKDIR=`realpath .`
+docker run -v $GPEN_WORKDIR:/workspace/gpen:Z --gpus all -v /tmp/.X11-unix:/tmp/.X11-unix -e DISPLAY=$DISPLAY -h $HOSTNAME -v $HOME/.Xauthority:/home/lyonn/.Xauthority -it gpen /bin/bash

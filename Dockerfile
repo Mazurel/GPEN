@@ -2,7 +2,7 @@ FROM pytorch/pytorch:1.8.0-cuda11.1-cudnn8-devel
 
 # Install all dependencies and usefull apps
 RUN apt-get update -y || echo # The || echo is needed for ignoring update errors
-RUN apt-get install -y freeglut3-dev build-essential libx11-dev libxmu-dev libxi-dev libgl1-mesa-glx libglu1-mesa libglu1-mesa-dev libglfw3-dev libgles2-mesa-dev git vim htop wget && \
+RUN apt-get install -y libglib2.0-0 libsm6 libxrender1 libxext6 freeglut3-dev build-essential libx11-dev libxmu-dev libxi-dev libgl1-mesa-glx libglu1-mesa libglu1-mesa-dev libglfw3-dev libgles2-mesa-dev git vim htop wget && \
     pip3 install pydrive2 requests
 
 # Fetch the repos
